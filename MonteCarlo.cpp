@@ -134,7 +134,7 @@ public:
 
 
 
-class MonteCarlo2
+class AAsianOption
 {
 private:
 		double variance;
@@ -147,7 +147,7 @@ private:
 		double standarderror;
 		double mean;
 public:
-	MonteCarlo2(const PayOff& thePayOff,
+	AAsianOption(const PayOff& thePayOff,
 				double Expiry,
 				double Spot,
 				double Vol,
@@ -158,20 +158,27 @@ public:
 		runningSquare = 0;
 		standarderror = 0;
 
+		double t = ((double)1)/12;
+		double spot = Spot;
+		variance = Vol*Vol*t;
+		rootVariance = sqrt(variance);
+		itoCorrection = -0.5*variance;
+
 		for (unsigned long i=0; i < NumberOfPaths; i++)
 		{
+			
+			// cout<<"Path "<<i<<'\n';
 			double runningspot = 0;
+			spot = Spot;
 
 			for(unsigned long j=1;j<=(12*Expiry);j++)
 			{
-				double t = ((double)j)/12;
-				variance = Vol*Vol*t;
-				rootVariance = sqrt(variance);
-				itoCorrection = -0.5*variance;
-				movedSpot = Spot*exp(r*t +itoCorrection);
-				runningspot+= movedSpot*exp(rootVariance*BoxMuller());
+				movedSpot = spot*exp(r*t +itoCorrection);
+				spot = movedSpot*exp(rootVariance*BoxMuller());
+				runningspot+= spot;
 			}
 			thisSpot =  runningspot/(12*Expiry);
+			// cout<<thisSpot<<'\n';
 			double thisPayOff = thePayOff(thisSpot);
 			runningSum += thisPayOff;
 			runningSquare += (thisPayOff*thisPayOff);
@@ -196,6 +203,74 @@ public:
 	}
 };
 
+
+
+class GAsianOption
+{
+private:
+		double variance;
+		double rootVariance;
+		double itoCorrection;
+		double movedSpot;
+		double thisSpot;
+		double runningSum;
+		double runningSquare;
+		double standarderror;
+		double mean;
+public:
+	GAsianOption(const PayOff& thePayOff,
+				double Expiry,
+				double Spot,
+				double Vol,
+				double r,
+				unsigned long NumberOfPaths)
+	{
+		runningSum = 0;
+		runningSquare = 0;
+		standarderror = 0;
+
+		double t = ((double)1)/12;
+		double spot = Spot;
+		variance = Vol*Vol*t;
+		rootVariance = sqrt(variance);
+		itoCorrection = -0.5*variance;
+
+		for (unsigned long i=0; i < NumberOfPaths; i++)
+		{
+			
+			double runningspot = 1;
+			spot = Spot;
+
+			for(unsigned long j=1;j<=(12*Expiry);j++)
+			{
+				movedSpot = spot*exp(r*t +itoCorrection);
+				spot = movedSpot*exp(rootVariance*BoxMuller());
+				runningspot*= pow(spot,t);
+			}
+			thisSpot =  runningspot;
+			double thisPayOff = thePayOff(thisSpot);
+			runningSum += thisPayOff;
+			runningSquare += (thisPayOff*thisPayOff);
+
+		}
+		mean = runningSum / NumberOfPaths;
+		standarderror = sqrt((runningSquare + NumberOfPaths*mean*mean - 2*mean*runningSum)/(NumberOfPaths*(NumberOfPaths - 1)));
+		mean *= exp(-r*Expiry);
+
+		cout<<"The price of the option is $"<<mean<<'\n';
+		cout<<"The standard error of the simulation is $"<<standarderror<<'\n';
+	}
+
+	double get_price() const
+	{
+		return mean;
+	}
+
+	double get_standarderror() const
+	{
+		return standarderror;
+	}
+};
 
 
 
@@ -250,8 +325,8 @@ int main()
 	double Spot = 100;
 	double Vol = 0.2;
 	double r = 0.05;
-	unsigned long NumberOfPaths = 10000;
-	unsigned long optionType = 0;
+	unsigned long NumberOfPaths = 1000;
+	unsigned long optionType = 1;
 
 
 	// cout << "\nEnter expiry\n";
@@ -292,7 +367,8 @@ int main()
 	// 									r,
 	// 									NumberOfPaths);
 
-	MonteCarlo2 m1(*thePayOffPtr,Expiry,Spot,Vol,r,NumberOfPaths);
+	AAsianOption m1(*thePayOffPtr,Expiry,Spot,Vol,r,NumberOfPaths);
+	GAsianOption m2(*thePayOffPtr,Expiry,Spot,Vol,r,NumberOfPaths);
 
 
 
